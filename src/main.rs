@@ -4,15 +4,20 @@ mod tools;
 
 use agent::{Agent, ReActAgent};
 use llm::MockLlm;
-use tools::CalculatorTool;
+use tools::code_writer::CodeWriterTool;
+use tools::system::SystemTool;
 
 fn main() {
     let llm = MockLlm;
-    let calculator = CalculatorTool;
-    let tools = vec![&calculator as &dyn tools::Tool];
+    let code_writer = CodeWriterTool;
+    let system = SystemTool;
+
+    let tools: Vec<&dyn tools::Tool> = vec![&code_writer, &system];
+
     let agent = ReActAgent::new(&llm, tools);
 
-    let task = "What is 4 * (3 + 5)?";
+    let task = "Generate a program to find the SHA-256 hash of 'hello world'";
+
     println!("Task: {}\n", task);
 
     match agent.run(task) {
