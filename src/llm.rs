@@ -1,13 +1,46 @@
 use anyhow::Result;
 use serde_json::json;
 
+/// A trait for Large Language Models (LLMs).
+///
+/// This trait defines the interface for a large language model, which is a
+/// core component of the agent. The LLM is responsible for generating responses
+/// based on a given prompt.
 pub trait Llm {
+    /// Takes a prompt and returns the LLM's response.
+    ///
+    /// # Arguments
+    ///
+    /// * `prompt` - A string representing the input to the LLM.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing the LLM's response as a string, or an error if
+    /// the call fails.
     fn call(&self, prompt: &str) -> Result<String>;
 }
 
+/// A mock implementation of the `Llm` trait for testing and demonstration.
+///
+/// `MockLlm` simulates the behavior of a real LLM by returning canned responses
+/// based on the content of the prompt. This allows for predictable testing of
+/// the agent's logic without making actual API calls.
 pub struct MockLlm;
 
 impl Llm for MockLlm {
+    /// Simulates a call to an LLM by returning a JSON response based on the prompt.
+    ///
+    /// This function contains the hardcoded logic that drives the ReAct agent's
+    /// behavior for the specific task of generating a SHA-256 hash program.
+    ///
+    /// # Arguments
+    ///
+    /// * `prompt` - The input prompt from the agent.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing a JSON string that represents the LLM's "thought"
+    /// and the "action" it has decided to take.
     fn call(&self, prompt: &str) -> Result<String> {
         // This is the final, most robust version of the generative logic.
         // It now includes creating a .gitignore file to prevent sandbox errors.

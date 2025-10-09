@@ -7,6 +7,10 @@ use llm::MockLlm;
 use tools::code_writer::CodeWriterTool;
 use tools::system::SystemTool;
 
+/// The main entry point for the application.
+///
+/// This function sets up the agent, including the LLM and tools, and then
+/// runs the agent with a specific task.
 fn main() {
     let llm = MockLlm;
     let code_writer = CodeWriterTool;
