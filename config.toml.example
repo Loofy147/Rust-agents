@@ -1,0 +1,7 @@
+# Example configuration for the application.
+#
+# Copy this file to `config.toml` and fill in your actual API key.
+
+[llm]
+api_key = "YOUR_API_KEY"
+model = "gpt-4"

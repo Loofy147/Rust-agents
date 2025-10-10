@@ -1,5 +1,7 @@
 use anyhow::Result;
-use std::process::Command;
+use async_trait::async_trait;
+use tokio::process::Command;
+
 use crate::tools::Tool;
 
 /// A tool for executing system commands.
@@ -8,6 +10,7 @@ use crate::tools::Tool;
 /// both stdout and stderr and returns them as a single string.
 pub struct SystemTool;
 
+#[async_trait]
 impl Tool for SystemTool {
     /// Returns the name of the tool, "SystemTool".
     fn name(&self) -> &str {
@@ -24,11 +27,12 @@ impl Tool for SystemTool {
     ///
     /// A `Result` containing the combined stdout and stderr of the command,
     /// or an error if the command fails to execute.
-    fn execute(&self, args: &str) -> Result<String> {
+    async fn execute(&self, args: &str) -> Result<String> {
         let output = Command::new("sh")
             .arg("-c")
             .arg(args)
-            .output()?;
+            .output()
+            .await?;
 
         // Combine stdout and stderr to capture all output.
         let stdout = String::from_utf8(output.stdout)?;

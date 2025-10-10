@@ -1,14 +1,20 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
+use async_trait::async_trait;
 use serde::Deserialize;
+use tracing::{debug, info};
 
-use crate::{llm::Llm, tools::Tool};
+use crate::{
+    llm::Llm,
+    tools::Tool,
+};
 
 /// A trait that defines the basic functionality of an agent.
 ///
 /// An agent is an entity that can perform tasks by interacting with its
 /// environment through a set of tools.
+#[async_trait]
 pub trait Agent {
     /// Runs the agent to complete a given task.
     ///
@@ -20,14 +26,14 @@ pub trait Agent {
     ///
     /// A `Result` containing the final answer or result of the task, or an
     /// error if the agent fails to complete the task.
-    fn run(&self, task: &str) -> Result<String>;
+    async fn run(&self, task: &str) -> Result<String>;
 }
 
 /// Represents an action to be taken by the agent.
 ///
 /// An action consists of a tool to be used and the arguments to pass to that
 /// tool.
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Action {
     /// The name of the tool to execute.
     pub tool: String,
@@ -40,7 +46,7 @@ pub struct Action {
 /// This struct is used to deserialize the JSON output from the LLM, which
 /// contains the agent's "thought" about what to do next and the "action" it
 /// plans to take.
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Thought {
     /// The reasoning behind the action.
     pub thought: String,
@@ -53,23 +59,23 @@ pub struct Thought {
 /// The `ReActAgent` works by iteratively reasoning about a task, taking an
 /// action, observing the outcome, and then repeating the cycle until the task
 /// is complete.
-pub struct ReActAgent<'a> {
-    llm: &'a dyn Llm,
-    tools: HashMap<String, &'a dyn Tool>,
+pub struct ReActAgent<L: Llm> {
+    llm: L,
+    tools: HashMap<String, Box<dyn Tool>>,
 }
 
-impl<'a> ReActAgent<'a> {
+impl<L: Llm> ReActAgent<L> {
     /// Creates a new `ReActAgent`.
     ///
     /// # Arguments
     ///
-    /// * `llm` - A reference to an object that implements the `Llm` trait.
-    /// * `tools` - A vector of references to objects that implement the `Tool` trait.
+    /// * `llm` - An object that implements the `Llm` trait.
+    /// * `tools` - A vector of objects that implement the `Tool` trait.
     ///
     /// # Returns
     ///
     /// A new instance of `ReActAgent`.
-    pub fn new(llm: &'a dyn Llm, tools: Vec<&'a dyn Tool>) -> Self {
+    pub fn new(llm: L, tools: Vec<Box<dyn Tool>>) -> Self {
         let mut tool_map = HashMap::new();
         for tool in tools {
             tool_map.insert(tool.name().to_string(), tool);
@@ -79,7 +85,8 @@ impl<'a> ReActAgent<'a> {
     }
 }
 
-impl<'a> Agent for ReActAgent<'a> {
+#[async_trait]
+impl<L: Llm> Agent for ReActAgent<L> {
     /// Runs the ReAct agent loop to complete the given task.
     ///
     /// This method implements the core ReAct logic:
@@ -97,18 +104,19 @@ impl<'a> Agent for ReActAgent<'a> {
     ///
     /// A `Result` containing the final answer from the "Finish" action, or an
     /// error if something goes wrong.
-    fn run(&self, task: &str) -> Result<String> {
+    async fn run(&self, task: &str) -> Result<String> {
         let mut prompt = format!("Task: {}\n", task);
         loop {
-            println!("---PROMPT---\n{}---END---\n", prompt);
+            debug!("Prompt: {}", prompt);
 
-            let llm_response = self.llm.call(&prompt)?;
+            let llm_response = self.llm.call(&prompt).await?;
             let thought: Thought = serde_json::from_str(&llm_response)?;
 
-            println!("---THOUGHT---\n{}---END---\n", thought.thought);
-            println!(
-                "---ACTION---\nTool: {}, Args: {}---END---\n",
-                thought.action.tool, thought.action.args
+            info!(thought = %thought.thought, "Llm thought");
+            info!(
+                tool = %thought.action.tool,
+                args = %thought.action.args,
+                "Llm action"
             );
 
             if thought.action.tool == "Finish" {
@@ -120,9 +128,9 @@ impl<'a> Agent for ReActAgent<'a> {
                 .get(&thought.action.tool)
                 .ok_or_else(|| anyhow::anyhow!("Tool not found: {}", thought.action.tool))?;
 
-            let observation = tool.execute(&thought.action.args)?;
+            let observation = tool.execute(&thought.action.args).await?;
 
-            println!("---OBSERVATION---\n{}---END---\n", observation);
+            info!(observation = %observation, "Tool observation");
 
             prompt = format!(
                 "{}\nThought: {}\nAction: {}\nObservation: {}",
