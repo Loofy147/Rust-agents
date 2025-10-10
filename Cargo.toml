@@ -5,6 +5,13 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.86"
+async-trait = "0.1.80"
+clap = { version = "4.5.8", features = ["derive"] }
+config = { version = "0.14.0", features = ["toml"] }
+reqwest = { version = "0.12.5", features = ["json"] }
 serde = { version = "1.0.203", features = ["derive"] }
 serde_json = "1.0.120"
 sha2 = "0.10.8"
+tokio = { version = "1.38.0", features = ["full"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
