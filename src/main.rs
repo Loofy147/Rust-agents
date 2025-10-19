@@ -6,12 +6,34 @@ use app::{
 use clap::Parser;
 use tracing::{error, info};
 
-/// A generative agent that can write and execute code to solve tasks.
+use agent::{Agent, ReActAgent};
+use clap::Parser;
+use config::{Config, File};
+use dotenv::dotenv;
+use llm::{Llm, MockLlm, OpenAiLlm};
+use serde::Deserialize;
+use tools::{
+    code_writer::CodeWriterTool, directory_lister::DirectoryListerTool,
+    file_reader::FileReaderTool, system::SystemTool, web_scraper::WebScraperTool, Tool,
+};
+use tracing::{error, info};
+use tracing_subscriber;
+
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
+#[command(author, version, about, long_about = None)]
 struct Args {
-    /// The task for the agent to complete.
+    /// The task for the agent to perform
+    #[arg(short, long)]
     task: String,
+
+    /// Use the mock LLM for testing
+    #[arg(long)]
+    mock: bool,
+}
+
+#[derive(Deserialize, Debug)]
+struct Settings {
+    model: String,
 }
 
 /// The main entry point for the application.
@@ -20,17 +42,37 @@ struct Args {
 /// runs the agent with a specific task.
 #[tokio::main]
 async fn main() {
+    dotenv().ok();
     tracing_subscriber::fmt::init();
+
+    let settings = Config::builder()
+        .add_source(File::with_name("config").required(false))
+        .build()
+        .unwrap()
+        .try_deserialize::<Settings>()
+        .unwrap();
 
     let args = Args::parse();
 
-    let settings = app::config::Settings::new().expect("Failed to load configuration");
+    let llm: Box<dyn Llm + Sync> = if args.mock {
+        Box::new(MockLlm)
+    } else {
+        Box::new(OpenAiLlm::new(&settings.model))
+    };
 
-    let llm = OpenAiLlm::new(settings);
     let code_writer = CodeWriterTool;
+    let file_reader = FileReaderTool;
+    let directory_lister = DirectoryListerTool;
     let system = SystemTool;
+    let web_scraper = WebScraperTool;
 
-    let tools: Vec<Box<dyn Tool>> = vec![Box::new(code_writer), Box::new(system)];
+    let tools: Vec<&(dyn Tool + Sync)> = vec![
+        &code_writer,
+        &file_reader,
+        &directory_lister,
+        &system,
+        &web_scraper,
+    ];
 
     let agent = ReActAgent::new(llm, tools);
 

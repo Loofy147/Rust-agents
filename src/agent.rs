@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use async_trait::async_trait;
 use serde::Deserialize;
-use tracing::{debug, info};
+use tracing::info;
 
 use crate::{
     llm::Llm,
@@ -59,9 +59,9 @@ pub struct Thought {
 /// The `ReActAgent` works by iteratively reasoning about a task, taking an
 /// action, observing the outcome, and then repeating the cycle until the task
 /// is complete.
-pub struct ReActAgent<L: Llm> {
-    llm: L,
-    tools: HashMap<String, Box<dyn Tool>>,
+pub struct ReActAgent<'a> {
+    llm: Box<dyn Llm + Sync>,
+    tools: HashMap<String, &'a (dyn Tool + Sync)>,
 }
 
 impl<L: Llm> ReActAgent<L> {
@@ -75,7 +75,7 @@ impl<L: Llm> ReActAgent<L> {
     /// # Returns
     ///
     /// A new instance of `ReActAgent`.
-    pub fn new(llm: L, tools: Vec<Box<dyn Tool>>) -> Self {
+    pub fn new(llm: Box<dyn Llm + Sync>, tools: Vec<&'a (dyn Tool + Sync)>) -> Self {
         let mut tool_map = HashMap::new();
         for tool in tools {
             tool_map.insert(tool.name().to_string(), tool);
@@ -83,10 +83,53 @@ impl<L: Llm> ReActAgent<L> {
 
         Self { llm, tools: tool_map }
     }
+
+    /// Constructs the initial prompt for the agent.
+    ///
+    /// This function creates a detailed prompt that includes the task, the
+    /// available tools, and instructions on how to format the response.
+    ///
+    /// # Arguments
+    ///
+    /// * `task` - The task for the agent to complete.
+    ///
+    /// # Returns
+    ///
+    /// A string containing the initial prompt.
+    fn construct_initial_prompt(&self, task: &str) -> String {
+        let tool_names = self
+            .tools
+            .keys()
+            .map(|s| s.as_str())
+            .collect::<Vec<&str>>()
+            .join(", ");
+
+        format!(
+            "You are a helpful assistant. Your task is to {}.
+
+You have the following tools available: {}.
+
+Please respond with a JSON object containing your `thought` and the `action` you want to take. The `action` should have a `tool` and `args`.
+
+Example:
+```json
+{{
+    \"thought\": \"I should write the code to a file.\",
+    \"action\": {{
+        \"tool\": \"CodeWriterTool\",
+        \"args\": \"./src/main.rs 'fn main() {{ println!(\\\"hello world\\\"); }}'\"
+    }}
+}}
+```
+
+If you have completed the task, use the `Finish` tool with the final answer.",
+            task, tool_names
+        )
+    }
 }
 
 #[async_trait]
-impl<L: Llm> Agent for ReActAgent<L> {
+impl<'a> Agent for ReActAgent<'a> {
     /// Runs the ReAct agent loop to complete the given task.
     ///
     /// This method implements the core ReAct logic:
@@ -105,18 +148,17 @@ impl<L: Llm> Agent for ReActAgent<L> {
     /// A `Result` containing the final answer from the "Finish" action, or an
     /// error if something goes wrong.
     async fn run(&self, task: &str) -> Result<String> {
-        let mut prompt = format!("Task: {}\n", task);
+        let mut prompt = self.construct_initial_prompt(task);
         loop {
-            debug!("Prompt: {}", prompt);
+            info!("---PROMPT---\n{}---END---\n", prompt);
 
             let llm_response = self.llm.call(&prompt).await?;
             let thought: Thought = serde_json::from_str(&llm_response)?;
 
-            info!(thought = %thought.thought, "Llm thought");
+            info!("---THOUGHT---\n{}---END---\n", thought.thought);
             info!(
-                tool = %thought.action.tool,
-                args = %thought.action.args,
-                "Llm action"
+                "---ACTION---\nTool: {}, Args: {}---END---\n",
+                thought.action.tool, thought.action.args
             );
 
             if thought.action.tool == "Finish" {
@@ -130,7 +172,7 @@ impl<L: Llm> Agent for ReActAgent<L> {
 
             let observation = tool.execute(&thought.action.args).await?;
 
-            info!(observation = %observation, "Tool observation");
+            info!("---OBSERVATION---\n{}---END---\n", observation);
 
             prompt = format!(
                 "{}\nThought: {}\nAction: {}\nObservation: {}",

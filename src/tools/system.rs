@@ -1,8 +1,7 @@
+use crate::tools::Tool;
 use anyhow::Result;
 use async_trait::async_trait;
 use tokio::process::Command;
-
-use crate::tools::Tool;
 
 /// A tool for executing system commands.
 ///

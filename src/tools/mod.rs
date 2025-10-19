@@ -6,7 +6,7 @@ use async_trait::async_trait;
 /// Tools are the primary means by which an agent can interact with its environment.
 /// Each tool has a unique name and an `execute` method that performs its action.
 #[async_trait]
-pub trait Tool: Send + Sync {
+pub trait Tool {
     /// Returns the name of the tool.
     ///
     /// The name should be a unique identifier for the tool.
@@ -27,4 +27,7 @@ pub trait Tool: Send + Sync {
 }
 
 pub mod code_writer;
+pub mod directory_lister;
+pub mod file_reader;
 pub mod system;
+pub mod web_scraper;
