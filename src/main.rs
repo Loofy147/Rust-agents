@@ -1,16 +1,17 @@
-use app::{
-    agent::{Agent, ReActAgent},
-    llm::OpenAiLlm,
-    tools::{code_writer::CodeWriterTool, system::SystemTool, Tool},
-};
-use clap::Parser;
-use tracing::{error, info};
+mod agent;
+mod executor;
+mod llm;
+mod orchestrator;
+mod planner;
+mod tools;
 
-use agent::{Agent, ReActAgent};
 use clap::Parser;
 use config::{Config, File};
 use dotenv::dotenv;
+use executor::ExecutorAgent;
 use llm::{Llm, MockLlm, OpenAiLlm};
+use orchestrator::Orchestrator;
+use planner::PlannerAgent;
 use serde::Deserialize;
 use tools::{
     code_writer::CodeWriterTool, directory_lister::DirectoryListerTool,
@@ -74,11 +75,20 @@ async fn main() {
         &web_scraper,
     ];
 
-    let agent = ReActAgent::new(llm, tools);
+    let planner_llm: Box<dyn Llm + Sync> = if args.mock {
+        Box::new(MockLlm)
+    } else {
+        Box::new(OpenAiLlm::new(&settings.model))
+    };
+
+    let planner = PlannerAgent::new(planner_llm);
+    let executor = ExecutorAgent::new(llm, tools);
+
+    let orchestrator = Orchestrator::new(planner, executor);
 
     info!("Task: {}\n", &args.task);
 
-    match agent.run(&args.task).await {
+    match orchestrator.run(&args.task).await {
         Ok(result) => info!("\nFinal Answer: {}", result),
         Err(e) => error!("Error: {}", e),
     }
