@@ -1,25 +1,31 @@
-# Rust Agents
+# Rust Multi-Agent Framework
 
-This project is a lightweight framework for building and running autonomous agents in Rust. It demonstrates the **ReAct (Reasoning and Acting)** paradigm, where an agent uses a Large Language Model (LLM) to reason about a task and then uses a set of tools to act upon its environment to accomplish a goal.
-
-The example task implemented in this repository is for an agent to **generate, compile, and run a new Rust program that calculates the SHA-256 hash of the string "hello world"**.
+This project is a sophisticated, asynchronous framework for building and running multi-agent systems in Rust. It is built on a **plan-and-execute** paradigm, where a team of specialized agents collaborates to accomplish complex tasks.
 
 ## Architecture
 
-The framework is designed to be simple and extensible, revolving around three core traits:
+The framework is designed around a central `Orchestrator` that manages a team of agents. The primary workflow involves two main agent types:
 
--   **`agent::Agent`**: The primary trait for any agent. It defines the `run` method, which is the main entry point for executing a task. The `ReActAgent` is the provided implementation of this trait.
--   **`llm::Llm`**: Represents the Large Language Model that the agent uses for reasoning. The framework includes a `MockLlm` for deterministic, offline execution, which simulates the thinking process required for the example task.
--   **`tools::Tool`**: A trait for tools that the agent can use to interact with its environment. Each tool has a `name` and an `execute` method. This project includes:
-    -   `CodeWriterTool`: To write content to files.
-    -   `SystemTool`: To execute arbitrary shell commands.
+-   **`PlannerAgent`**: This agent receives a high-level goal and is responsible for breaking it down into a sequence of smaller, actionable steps.
+-   **`ExecutorAgent`**: This agent takes a single, well-defined step from the planner's output and executes it using the available tools. It operates on the **ReAct (Reasoning and Acting)** paradigm, where it reasons about the step, selects a tool, and acts upon the environment.
 
-The `ReActAgent` orchestrates the entire process in a loop:
-1.  It receives a task and formulates a prompt for the LLM.
-2.  The LLM returns a `Thought` (its reasoning) and an `Action` (which tool to use and with what arguments).
-3.  The agent executes the specified `Action` using the corresponding tool.
-4.  The result of the action, called an `Observation`, is fed back into the prompt for the next iteration.
-5.  This loop continues until the LLM determines the task is complete and returns a `Finish` action.
+### Core Components
+
+-   **`orchestrator::Orchestrator`**: The central coordinator that manages the overall workflow. It takes a task, gets a plan from the `PlannerAgent`, and dispatches each step of the plan to the `ExecutorAgent`.
+-   **`agent::Agent`**: A generic trait for any agent, defining the common `run` method.
+-   **`llm::Llm`**: A trait for Large Language Models. The framework includes two implementations:
+    -   `OpenAiLlm`: Connects to the OpenAI API to provide reasoning capabilities to the agents.
+    -   `MockLlm`: A mock implementation for deterministic, offline testing.
+-   **`tools::Tool`**: A trait for tools that the `ExecutorAgent` can use to interact with its environment.
+
+### Available Tools
+
+The `ExecutorAgent` has access to the following tools:
+-   **`CodeWriterTool`**: Writes content to files.
+-   **`DirectoryListerTool`**: Lists the contents of a directory.
+-   **`FileReaderTool`**: Reads the contents of a file.
+-   **`SystemTool`**: Executes arbitrary shell commands.
+-   **`WebScraperTool`**: Fetches and parses the text content of a URL.
 
 ## Setup
 
@@ -33,11 +39,20 @@ To get started with this project, you'll need to have the Rust toolchain install
 
 2.  **Clone the Repository:**
     ```bash
-    git clone https://github.com/example/rust-agents.git
-    cd rust-agents
+    git clone <repository-url>
+    cd rust-multi-agent-framework
     ```
 
-3.  **Build the Project:**
+3.  **Set up Environment Variables:**
+    You will need an OpenAI API key to run the system with the `OpenAiLlm`. Create a `.env` file in the root of the project:
+    ```bash
+    echo "OPENAI_API_KEY=your_api_key_here" > .env
+    ```
+
+4.  **Configure the Application:**
+    You can customize the model used by the LLM in the `config.toml` file. An example is provided in `config.toml.example`.
+
+5.  **Build the Project:**
     Compile the project and its dependencies.
     ```bash
     cargo build
@@ -45,10 +60,18 @@ To get started with this project, you'll need to have the Rust toolchain install
 
 ## Usage
 
-To run the agent and see it in action, simply use `cargo run`:
+To run the agent system, use `cargo run` with the `--task` flag to specify the goal.
 
 ```bash
-cargo run
+cargo run -- --task "Scrape the homepage of 'example.com' and save the text content to a file named 'homepage.txt'."
 ```
 
-You will see the agent's entire process printed to the console, including its thoughts, actions, and observations at each step as it works to complete the task. The final output will be the SHA-256 hash calculated by the program that the agent generated.
+### Using the Mock LLM
+
+For testing and development, you can run the system with the mock LLM by adding the `--mock` flag. This does not require an API key.
+
+```bash
+cargo run -- --task "your task here" --mock
+```
+
+You will see the entire process printed to the console, including the plan generated by the `PlannerAgent` and the thoughts, actions, and observations of the `ExecutorAgent` at each step.
