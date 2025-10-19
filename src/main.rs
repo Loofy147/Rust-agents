@@ -6,11 +6,11 @@ use agent::{Agent, ReActAgent};
 use clap::Parser;
 use config::{Config, File};
 use dotenv::dotenv;
-use llm::OpenAiLlm;
+use llm::{Llm, MockLlm, OpenAiLlm};
 use serde::Deserialize;
 use tools::{
     code_writer::CodeWriterTool, directory_lister::DirectoryListerTool,
-    file_reader::FileReaderTool, system::SystemTool, Tool,
+    file_reader::FileReaderTool, system::SystemTool, web_scraper::WebScraperTool, Tool,
 };
 use tracing::{error, info};
 use tracing_subscriber;
@@ -21,6 +21,10 @@ struct Args {
     /// The task for the agent to perform
     #[arg(short, long)]
     task: String,
+
+    /// Use the mock LLM for testing
+    #[arg(long)]
+    mock: bool,
 }
 
 #[derive(Deserialize, Debug)]
@@ -46,21 +50,27 @@ async fn main() {
 
     let args = Args::parse();
 
-    let llm = OpenAiLlm::new(&settings.model);
+    let llm: Box<dyn Llm + Sync> = if args.mock {
+        Box::new(MockLlm)
+    } else {
+        Box::new(OpenAiLlm::new(&settings.model))
+    };
 
     let code_writer = CodeWriterTool;
     let file_reader = FileReaderTool;
     let directory_lister = DirectoryListerTool;
     let system = SystemTool;
+    let web_scraper = WebScraperTool;
 
     let tools: Vec<&(dyn Tool + Sync)> = vec![
         &code_writer,
         &file_reader,
         &directory_lister,
         &system,
+        &web_scraper,
     ];
 
-    let agent = ReActAgent::new(&llm, tools);
+    let agent = ReActAgent::new(llm, tools);
 
     info!("Task: {}\n", &args.task);
 

@@ -57,7 +57,7 @@ pub struct Thought {
 /// action, observing the outcome, and then repeating the cycle until the task
 /// is complete.
 pub struct ReActAgent<'a> {
-    llm: &'a (dyn Llm + Sync),
+    llm: Box<dyn Llm + Sync>,
     tools: HashMap<String, &'a (dyn Tool + Sync)>,
 }
 
@@ -72,7 +72,7 @@ impl<'a> ReActAgent<'a> {
     /// # Returns
     ///
     /// A new instance of `ReActAgent`.
-    pub fn new(llm: &'a (dyn Llm + Sync), tools: Vec<&'a (dyn Tool + Sync)>) -> Self {
+    pub fn new(llm: Box<dyn Llm + Sync>, tools: Vec<&'a (dyn Tool + Sync)>) -> Self {
         let mut tool_map = HashMap::new();
         for tool in tools {
             tool_map.insert(tool.name().to_string(), tool);

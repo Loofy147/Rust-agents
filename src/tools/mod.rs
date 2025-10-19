@@ -30,3 +30,4 @@ pub mod code_writer;
 pub mod directory_lister;
 pub mod file_reader;
 pub mod system;
+pub mod web_scraper;
