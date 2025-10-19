@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::env;
 
+use crate::config::Settings;
+
 /// A trait for Large Language Models (LLMs).
 ///
 /// This trait defines the interface for a large language model, which is a
@@ -179,7 +181,8 @@ fn main() {
     println!("{:x}", result);
 }
 "#;
-            let args = format!("./generated_app/src/main.rs {}", serde_json::to_string(code)?);
+            let args =
+                format!("./generated_app/src/main.rs {}", serde_json::to_string(code)?);
             return Ok(json!({
                 "thought": ".gitignore written. Now I will write the `main.rs` file.",
                 "action": { "tool": "CodeWriterTool", "args": args }

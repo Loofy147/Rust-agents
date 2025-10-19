@@ -5,7 +5,10 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use tracing::info;
 
-use crate::{llm::Llm, tools::Tool};
+use crate::{
+    llm::Llm,
+    tools::Tool,
+};
 
 /// A trait that defines the basic functionality of an agent.
 ///
@@ -30,7 +33,7 @@ pub trait Agent {
 ///
 /// An action consists of a tool to be used and the arguments to pass to that
 /// tool.
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Action {
     /// The name of the tool to execute.
     pub tool: String,
@@ -43,7 +46,7 @@ pub struct Action {
 /// This struct is used to deserialize the JSON output from the LLM, which
 /// contains the agent's "thought" about what to do next and the "action" it
 /// plans to take.
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Thought {
     /// The reasoning behind the action.
     pub thought: String,
@@ -61,13 +64,13 @@ pub struct ReActAgent<'a> {
     tools: HashMap<String, &'a (dyn Tool + Sync)>,
 }
 
-impl<'a> ReActAgent<'a> {
+impl<L: Llm> ReActAgent<L> {
     /// Creates a new `ReActAgent`.
     ///
     /// # Arguments
     ///
-    /// * `llm` - A reference to an object that implements the `Llm` trait.
-    /// * `tools` - A vector of references to objects that implement the `Tool` trait.
+    /// * `llm` - An object that implements the `Llm` trait.
+    /// * `tools` - A vector of objects that implement the `Tool` trait.
     ///
     /// # Returns
     ///
