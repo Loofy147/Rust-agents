@@ -1,5 +1,7 @@
 use anyhow::Result;
-use std::fs;
+use async_trait::async_trait;
+use tokio::fs;
+
 use crate::tools::Tool;
 
 /// A tool for writing code to files.
@@ -9,6 +11,7 @@ use crate::tools::Tool;
 /// in the filesystem.
 pub struct CodeWriterTool;
 
+#[async_trait]
 impl Tool for CodeWriterTool {
     /// Returns the name of the tool, "CodeWriterTool".
     fn name(&self) -> &str {
@@ -27,10 +30,12 @@ impl Tool for CodeWriterTool {
     ///
     /// A `Result` with a success message if the file was written correctly, or
     /// an error if the arguments are invalid or the file cannot be written.
-    fn execute(&self, args: &str) -> Result<String> {
+    async fn execute(&self, args: &str) -> Result<String> {
         let parts: Vec<&str> = args.splitn(2, ' ').collect();
         if parts.len() != 2 {
-            return Err(anyhow::anyhow!("Invalid arguments for CodeWriterTool. Expected: <filepath> <json_string_content>"));
+            return Err(anyhow::anyhow!(
+                "Invalid arguments for CodeWriterTool. Expected: <filepath> <json_string_content>"
+            ));
         }
         let filepath = parts[0];
         let content_json = parts[1];
@@ -38,7 +43,7 @@ impl Tool for CodeWriterTool {
         // The content is a JSON string, so we need to parse it to get the raw string.
         let content: String = serde_json::from_str(content_json)?;
 
-        fs::write(filepath, content)?;
+        fs::write(filepath, content).await?;
         Ok(format!("Successfully wrote to {}", filepath))
     }
 }

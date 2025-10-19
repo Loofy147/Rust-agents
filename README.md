@@ -1,18 +1,22 @@
 # Rust Agents
 
-This project is a lightweight framework for building and running autonomous agents in Rust. It demonstrates the **ReAct (Reasoning and Acting)** paradigm, where an agent uses a Large Language Model (LLM) to reason about a task and then uses a set of tools to act upon its environment to accomplish a goal.
+This project is a lightweight, asynchronous framework for building and running autonomous agents in Rust. It demonstrates the **ReAct (Reasoning and Acting)** paradigm, where an agent uses a Large Language Model (LLM) to reason about a task and then uses a set of tools to act upon its environment to accomplish a goal.
 
-The example task implemented in this repository is for an agent to **generate, compile, and run a new Rust program that calculates the SHA-256 hash of the string "hello world"**.
+The agent is now capable of using a real LLM (like OpenAI's GPT models) to solve arbitrary tasks given to it via the command line.
 
 ## Architecture
 
-The framework is designed to be simple and extensible, revolving around three core traits:
+The framework is designed to be simple, extensible, and fully asynchronous, revolving around a few core traits and concepts:
 
--   **`agent::Agent`**: The primary trait for any agent. It defines the `run` method, which is the main entry point for executing a task. The `ReActAgent` is the provided implementation of this trait.
--   **`llm::Llm`**: Represents the Large Language Model that the agent uses for reasoning. The framework includes a `MockLlm` for deterministic, offline execution, which simulates the thinking process required for the example task.
+-   **`agent::Agent`**: The primary trait for any agent. It defines the `run` method, which is the main entry point for executing a task. The `ReActAgent` is the provided implementation.
+-   **`llm::Llm`**: Represents the Large Language Model that the agent uses for reasoning. The framework includes:
+    -   An `OpenAiLlm` client for connecting to the OpenAI API.
+    -   A `MockLlm` for deterministic, offline testing.
 -   **`tools::Tool`**: A trait for tools that the agent can use to interact with its environment. Each tool has a `name` and an `execute` method. This project includes:
     -   `CodeWriterTool`: To write content to files.
     -   `SystemTool`: To execute arbitrary shell commands.
+
+The application is built on the `tokio` runtime for its asynchronous capabilities and uses `tracing` for structured logging.
 
 The `ReActAgent` orchestrates the entire process in a loop:
 1.  It receives a task and formulates a prompt for the LLM.
@@ -37,18 +41,38 @@ To get started with this project, you'll need to have the Rust toolchain install
     cd rust-agents
     ```
 
-3.  **Build the Project:**
+3.  **Configure the Application:**
+    The agent requires an API key to communicate with the OpenAI API.
+    -   Copy the example configuration file:
+        ```bash
+        cp config.toml.example config.toml
+        ```
+    -   Open `config.toml` and replace `"YOUR_API_KEY"` with your actual OpenAI API key. You can also change the model if you wish.
+
+4.  **Build the Project:**
     Compile the project and its dependencies.
     ```bash
-    cargo build
+    cargo build --release
     ```
 
 ## Usage
 
-To run the agent and see it in action, simply use `cargo run`:
+To run the agent, use `cargo run` and provide a task as a command-line argument. The task should be enclosed in quotes if it contains spaces.
+
+**Example:**
+
+Here's how to run the original task of generating a program to find the SHA-256 hash of "hello world":
 
 ```bash
-cargo run
+cargo run --release -- "Generate a program to find the SHA-256 hash of 'hello world'"
 ```
 
-You will see the agent's entire process printed to the console, including its thoughts, actions, and observations at each step as it works to complete the task. The final output will be the SHA-256 hash calculated by the program that the agent generated.
+The agent will use the LLM to reason through the steps: creating a new Cargo project, adding dependencies, writing the Rust code, and finally compiling and running it to get the hash. You will see the agent's entire process logged to the console, including its thoughts, actions, and observations.
+
+## Testing
+
+The project includes a suite of unit and integration tests. To run them, use:
+```bash
+cargo test
+```
+The tests use the `MockLlm` to ensure they can run offline and produce deterministic results.
