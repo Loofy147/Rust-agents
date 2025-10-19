@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
+use async_trait::async_trait;
 use serde::Deserialize;
+use tracing::info;
 
 use crate::{llm::Llm, tools::Tool};
 
@@ -9,6 +11,7 @@ use crate::{llm::Llm, tools::Tool};
 ///
 /// An agent is an entity that can perform tasks by interacting with its
 /// environment through a set of tools.
+#[async_trait]
 pub trait Agent {
     /// Runs the agent to complete a given task.
     ///
@@ -20,7 +23,7 @@ pub trait Agent {
     ///
     /// A `Result` containing the final answer or result of the task, or an
     /// error if the agent fails to complete the task.
-    fn run(&self, task: &str) -> Result<String>;
+    async fn run(&self, task: &str) -> Result<String>;
 }
 
 /// Represents an action to be taken by the agent.
@@ -54,8 +57,8 @@ pub struct Thought {
 /// action, observing the outcome, and then repeating the cycle until the task
 /// is complete.
 pub struct ReActAgent<'a> {
-    llm: &'a dyn Llm,
-    tools: HashMap<String, &'a dyn Tool>,
+    llm: &'a (dyn Llm + Sync),
+    tools: HashMap<String, &'a (dyn Tool + Sync)>,
 }
 
 impl<'a> ReActAgent<'a> {
@@ -69,7 +72,7 @@ impl<'a> ReActAgent<'a> {
     /// # Returns
     ///
     /// A new instance of `ReActAgent`.
-    pub fn new(llm: &'a dyn Llm, tools: Vec<&'a dyn Tool>) -> Self {
+    pub fn new(llm: &'a (dyn Llm + Sync), tools: Vec<&'a (dyn Tool + Sync)>) -> Self {
         let mut tool_map = HashMap::new();
         for tool in tools {
             tool_map.insert(tool.name().to_string(), tool);
@@ -77,8 +80,52 @@ impl<'a> ReActAgent<'a> {
 
         Self { llm, tools: tool_map }
     }
+
+    /// Constructs the initial prompt for the agent.
+    ///
+    /// This function creates a detailed prompt that includes the task, the
+    /// available tools, and instructions on how to format the response.
+    ///
+    /// # Arguments
+    ///
+    /// * `task` - The task for the agent to complete.
+    ///
+    /// # Returns
+    ///
+    /// A string containing the initial prompt.
+    fn construct_initial_prompt(&self, task: &str) -> String {
+        let tool_names = self
+            .tools
+            .keys()
+            .map(|s| s.as_str())
+            .collect::<Vec<&str>>()
+            .join(", ");
+
+        format!(
+            "You are a helpful assistant. Your task is to {}.
+
+You have the following tools available: {}.
+
+Please respond with a JSON object containing your `thought` and the `action` you want to take. The `action` should have a `tool` and `args`.
+
+Example:
+```json
+{{
+    \"thought\": \"I should write the code to a file.\",
+    \"action\": {{
+        \"tool\": \"CodeWriterTool\",
+        \"args\": \"./src/main.rs 'fn main() {{ println!(\\\"hello world\\\"); }}'\"
+    }}
+}}
+```
+
+If you have completed the task, use the `Finish` tool with the final answer.",
+            task, tool_names
+        )
+    }
 }
 
+#[async_trait]
 impl<'a> Agent for ReActAgent<'a> {
     /// Runs the ReAct agent loop to complete the given task.
     ///
@@ -97,16 +144,16 @@ impl<'a> Agent for ReActAgent<'a> {
     ///
     /// A `Result` containing the final answer from the "Finish" action, or an
     /// error if something goes wrong.
-    fn run(&self, task: &str) -> Result<String> {
-        let mut prompt = format!("Task: {}\n", task);
+    async fn run(&self, task: &str) -> Result<String> {
+        let mut prompt = self.construct_initial_prompt(task);
         loop {
-            println!("---PROMPT---\n{}---END---\n", prompt);
+            info!("---PROMPT---\n{}---END---\n", prompt);
 
-            let llm_response = self.llm.call(&prompt)?;
+            let llm_response = self.llm.call(&prompt).await?;
             let thought: Thought = serde_json::from_str(&llm_response)?;
 
-            println!("---THOUGHT---\n{}---END---\n", thought.thought);
-            println!(
+            info!("---THOUGHT---\n{}---END---\n", thought.thought);
+            info!(
                 "---ACTION---\nTool: {}, Args: {}---END---\n",
                 thought.action.tool, thought.action.args
             );
@@ -120,9 +167,9 @@ impl<'a> Agent for ReActAgent<'a> {
                 .get(&thought.action.tool)
                 .ok_or_else(|| anyhow::anyhow!("Tool not found: {}", thought.action.tool))?;
 
-            let observation = tool.execute(&thought.action.args)?;
+            let observation = tool.execute(&thought.action.args).await?;
 
-            println!("---OBSERVATION---\n{}---END---\n", observation);
+            info!("---OBSERVATION---\n{}---END---\n", observation);
 
             prompt = format!(
                 "{}\nThought: {}\nAction: {}\nObservation: {}",

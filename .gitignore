@@ -1,1 +1,4 @@
-/target
+.env
+target/
+Cargo.lock
+generated_app/
