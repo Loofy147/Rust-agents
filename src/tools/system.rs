@@ -26,6 +26,7 @@ impl Tool for SystemTool {
     ///
     /// A `Result` containing the combined stdout and stderr of the command,
     /// or an error if the command fails to execute.
+    #[tracing::instrument(skip(self))]
     async fn execute(&self, args: &str) -> Result<String> {
         let output = Command::new("sh")
             .arg("-c")

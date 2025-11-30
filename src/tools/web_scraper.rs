@@ -26,6 +26,7 @@ impl Tool for WebScraperTool {
     ///
     /// A `Result` with the scraped text content of the website's body, or an
     /// error if the website cannot be scraped.
+    #[tracing::instrument(skip(self))]
     async fn execute(&self, args: &str) -> Result<String> {
         let url = args.trim();
         let resp = reqwest::get(url).await?.text().await?;

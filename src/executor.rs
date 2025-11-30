@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -41,29 +41,43 @@ pub struct Thought {
 /// The `ReActAgent` works by iteratively reasoning about a task, taking an
 /// action, observing the outcome, and then repeating the cycle until the task
 /// is complete.
-pub struct ExecutorAgent<'a> {
-    llm: Box<dyn Llm + Sync>,
-    tools: HashMap<String, &'a (dyn Tool + Sync)>,
+pub struct ExecutorAgent {
+    llm: Arc<dyn Llm + Send + Sync>,
+    tools: HashMap<String, Box<dyn Tool + Send + Sync>>,
+    name: String,
+    description: String,
 }
 
-impl<'a> ExecutorAgent<'a> {
+impl ExecutorAgent {
     /// Creates a new `ExecutorAgent`.
     ///
     /// # Arguments
     ///
     /// * `llm` - A reference to an object that implements the `Llm` trait.
-    /// * `tools` - A vector of references to objects that implement the `Tool` trait.
+    /// * `tools` - A vector of objects that implement the `Tool` trait.
+    /// * `name` - The name of the agent.
+    /// * `description` - A description of the agent's purpose.
     ///
     /// # Returns
     ///
     /// A new instance of `ExecutorAgent`.
-    pub fn new(llm: Box<dyn Llm + Sync>, tools: Vec<&'a (dyn Tool + Sync)>) -> Self {
+    pub fn new(
+        llm: Arc<dyn Llm + Send + Sync>,
+        tools: Vec<Box<dyn Tool + Send + Sync>>,
+        name: &str,
+        description: &str,
+    ) -> Self {
         let mut tool_map = HashMap::new();
         for tool in tools {
             tool_map.insert(tool.name().to_string(), tool);
         }
 
-        Self { llm, tools: tool_map }
+        Self {
+            llm,
+            tools: tool_map,
+            name: name.to_string(),
+            description: description.to_string(),
+        }
     }
 
     /// Constructs the initial prompt for the agent.
@@ -111,7 +125,15 @@ If you have completed the task, use the `Finish` tool with the final answer.",
 }
 
 #[async_trait]
-impl<'a> Agent for ExecutorAgent<'a> {
+impl Agent for ExecutorAgent {
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn description(&self) -> String {
+        self.description.clone()
+    }
+
     /// Runs the ReAct agent loop to complete the given task.
     ///
     /// This method implements the core ReAct logic:
@@ -129,6 +151,7 @@ impl<'a> Agent for ExecutorAgent<'a> {
     ///
     /// A `Result` containing the final answer from the "Finish" action, or an
     /// error if something goes wrong.
+    #[tracing::instrument(skip(self))]
     async fn run(&self, task: &str) -> Result<String> {
         let mut prompt = self.construct_initial_prompt(task);
         loop {
