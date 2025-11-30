@@ -2,20 +2,22 @@ mod agent;
 mod executor;
 mod llm;
 mod orchestrator;
-mod planner;
+mod supervisor;
 mod tools;
 
+use crate::agent::Agent;
 use clap::Parser;
 use config::{Config, File};
 use dotenv::dotenv;
 use executor::ExecutorAgent;
 use llm::{Llm, MockLlm, OpenAiLlm};
 use orchestrator::Orchestrator;
-use planner::PlannerAgent;
 use serde::Deserialize;
+use std::collections::HashMap;
+use supervisor::SupervisorAgent;
 use tools::{
     code_writer::CodeWriterTool, directory_lister::DirectoryListerTool,
-    file_reader::FileReaderTool, system::SystemTool, web_scraper::WebScraperTool, Tool,
+    file_reader::FileReaderTool, system::SystemTool, web_scraper::WebScraperTool,
 };
 use tracing::{error, info};
 use tracing_subscriber;
@@ -55,36 +57,55 @@ async fn main() {
 
     let args = Args::parse();
 
-    let llm: Box<dyn Llm + Sync> = if args.mock {
+    let llm: Box<dyn Llm + Send + Sync> = if args.mock {
+        Box::new(MockLlm)
+    } else {
+        Box::new(OpenAiLlm::new(&settings.model))
+    };
+    let llm2: Box<dyn Llm + Send + Sync> = if args.mock {
         Box::new(MockLlm)
     } else {
         Box::new(OpenAiLlm::new(&settings.model))
     };
 
-    let code_writer = CodeWriterTool;
-    let file_reader = FileReaderTool;
-    let directory_lister = DirectoryListerTool;
-    let system = SystemTool;
-    let web_scraper = WebScraperTool;
+    let file_system_agent = ExecutorAgent::new(
+        llm,
+        vec![
+            Box::new(CodeWriterTool),
+            Box::new(FileReaderTool),
+            Box::new(DirectoryListerTool),
+            Box::new(SystemTool),
+        ],
+        "FileSystemAgent",
+        "An agent that can interact with the file system.",
+    );
 
-    let tools: Vec<&(dyn Tool + Sync)> = vec![
-        &code_writer,
-        &file_reader,
-        &directory_lister,
-        &system,
-        &web_scraper,
-    ];
+    let web_scraper_agent = ExecutorAgent::new(
+        llm2,
+        vec![Box::new(WebScraperTool)],
+        "WebScraperAgent",
+        "An agent that can scrape web pages.",
+    );
 
-    let planner_llm: Box<dyn Llm + Sync> = if args.mock {
+    let mut workers: HashMap<String, Box<dyn Agent + Send + Sync>> = HashMap::new();
+    workers.insert(
+        file_system_agent.name(),
+        Box::new(file_system_agent) as Box<dyn Agent + Send + Sync>,
+    );
+    workers.insert(
+        web_scraper_agent.name(),
+        Box::new(web_scraper_agent) as Box<dyn Agent + Send + Sync>,
+    );
+
+    let supervisor_llm: Box<dyn Llm + Send + Sync> = if args.mock {
         Box::new(MockLlm)
     } else {
         Box::new(OpenAiLlm::new(&settings.model))
     };
 
-    let planner = PlannerAgent::new(planner_llm);
-    let executor = ExecutorAgent::new(llm, tools);
+    let supervisor = SupervisorAgent::new(supervisor_llm, workers);
 
-    let orchestrator = Orchestrator::new(planner, executor);
+    let orchestrator = Orchestrator::new(Box::new(supervisor));
 
     info!("Task: {}\n", &args.task);
 
