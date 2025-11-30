@@ -1,22 +1,17 @@
-use crate::{
-    agent::Agent,
-    executor::ExecutorAgent,
-    planner::PlannerAgent,
-};
+use crate::agent::Agent;
 use anyhow::Result;
 use tracing::info;
 
 /// The orchestrator is responsible for managing the agents and the overall
 /// workflow of the multi-agent system.
-pub struct Orchestrator<'a> {
-    planner: PlannerAgent,
-    executor: ExecutorAgent<'a>,
+pub struct Orchestrator {
+    supervisor: Box<dyn Agent + Send + Sync>,
 }
 
-impl<'a> Orchestrator<'a> {
+impl Orchestrator {
     /// Creates a new `Orchestrator`.
-    pub fn new(planner: PlannerAgent, executor: ExecutorAgent<'a>) -> Self {
-        Self { planner, executor }
+    pub fn new(supervisor: Box<dyn Agent + Send + Sync>) -> Self {
+        Self { supervisor }
     }
 
     /// Runs the multi-agent system to complete a given task.
@@ -31,18 +26,8 @@ impl<'a> Orchestrator<'a> {
     /// system fails.
     pub async fn run(&self, task: &str) -> Result<String> {
         info!("Starting orchestrator with task: {}", task);
-        let plan = self.planner.run(task).await?;
-        info!("Plan created: \n{}", plan);
-
-        let steps: Vec<&str> = plan.lines().collect();
-        let mut results = Vec::new();
-
-        for step in steps {
-            let result = self.executor.run(step).await?;
-            info!("Step completed: {}\nResult: {}", step, result);
-            results.push(result);
-        }
-
-        Ok(results.join("\n"))
+        let result = self.supervisor.run(task).await?;
+        info!("Task completed with result: {}", result);
+        Ok(result)
     }
 }
