@@ -24,6 +24,7 @@ impl Orchestrator {
     ///
     /// A `Result` with the final result of the task, or an error if the
     /// system fails.
+    #[tracing::instrument(skip(self))]
     pub async fn run(&self, task: &str) -> Result<String> {
         info!("Starting orchestrator with task: {}", task);
         let result = self.supervisor.run(task).await?;

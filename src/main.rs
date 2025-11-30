@@ -20,7 +20,38 @@ use tools::{
     file_reader::FileReaderTool, system::SystemTool, web_scraper::WebScraperTool,
 };
 use tracing::{error, info};
-use tracing_subscriber;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+fn init_tracer(settings: &Settings) -> Result<(), anyhow::Error> {
+    let endpoint = settings
+        .otlp_endpoint
+        .as_deref()
+        .unwrap_or("http://localhost:4317");
+
+    let exporter = opentelemetry_otlp::new_exporter()
+        .tonic()
+        .with_endpoint(endpoint);
+
+    let tracer = opentelemetry_otlp::new_pipeline()
+        .tracing()
+        .with_exporter(exporter)
+        .with_trace_config(
+            trace::config().with_resource(Resource::new(vec![opentelemetry::KeyValue::new(
+                "service.name",
+                "rust-multi-agent-framework",
+            )])),
+        )
+        .install_batch(opentelemetry_sdk::runtime::Tokio)?;
+
+    let telemetry_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+
+    tracing_subscriber::Registry::default()
+        .with(telemetry_layer)
+        .with(tracing_subscriber::fmt::layer())
+        .try_init()?;
+
+    Ok(())
+}
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -37,6 +68,7 @@ struct Args {
 #[derive(Deserialize, Debug)]
 struct Settings {
     model: String,
+    otlp_endpoint: Option<String>,
 }
 
 /// The main entry point for the application.
@@ -46,7 +78,6 @@ struct Settings {
 #[tokio::main]
 async fn main() {
     dotenv().ok();
-    tracing_subscriber::fmt::init();
 
     let settings = Config::builder()
         .add_source(File::with_name("config").required(false))
@@ -55,12 +86,16 @@ async fn main() {
         .try_deserialize::<Settings>()
         .unwrap();
 
+    init_tracer(&settings).expect("Failed to initialize tracer");
+
+    global::set_text_map_propagator(TraceContextPropagator::new());
+
     let args = Args::parse();
 
     let llm: Box<dyn Llm + Send + Sync> = if args.mock {
         Box::new(MockLlm)
     } else {
-        Box::new(OpenAiLlm::new(&settings.model))
+        Arc::new(OpenAiLlm::new(&settings.model))
     };
     let llm2: Box<dyn Llm + Send + Sync> = if args.mock {
         Box::new(MockLlm)

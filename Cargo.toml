@@ -17,3 +17,8 @@ tracing-subscriber = "0.3.18"
 clap = { version = "4.5.8", features = ["derive"] }
 config = "0.14.0"
 scraper = "0.19.0"
+tracing-opentelemetry = "0.23.0"
+opentelemetry = "0.22.0"
+opentelemetry-otlp = { version = "0.15.0", features = ["grpc-tonic"] }
+opentelemetry_sdk = { version = "0.22.1", features = ["rt-tokio"] }
+tonic = { version = "0.11.0", features = ["tls-webpki-roots"] }

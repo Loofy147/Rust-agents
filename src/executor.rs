@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -151,6 +151,7 @@ impl Agent for ExecutorAgent {
     ///
     /// A `Result` containing the final answer from the "Finish" action, or an
     /// error if something goes wrong.
+    #[tracing::instrument(skip(self))]
     async fn run(&self, task: &str) -> Result<String> {
         let mut prompt = self.construct_initial_prompt(task);
         loop {
