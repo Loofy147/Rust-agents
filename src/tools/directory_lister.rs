@@ -27,6 +27,7 @@ impl Tool for DirectoryListerTool {
     /// A `Result` with a string containing the names of the files and
     /// directories, separated by newlines, or an error if the directory
     /// cannot be read.
+    #[tracing::instrument(skip(self))]
     async fn execute(&self, args: &str) -> Result<String> {
         let dir_path = args.trim();
         let mut entries = fs::read_dir(dir_path).await?;

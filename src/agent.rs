@@ -4,6 +4,12 @@ use async_trait::async_trait;
 /// A trait that defines the basic functionality of an agent.
 #[async_trait]
 pub trait Agent {
+    /// Returns the name of the agent.
+    fn name(&self) -> String;
+
+    /// Returns a description of the agent's purpose and capabilities.
+    fn description(&self) -> String;
+
     /// Runs the agent to complete a given task.
     ///
     /// # Arguments

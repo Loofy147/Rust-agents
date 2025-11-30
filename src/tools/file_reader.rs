@@ -25,6 +25,7 @@ impl Tool for FileReaderTool {
     ///
     /// A `Result` with the content of the file, or an error if the file
     /// cannot be read.
+    #[tracing::instrument(skip(self))]
     async fn execute(&self, args: &str) -> Result<String> {
         let filepath = args.trim();
         let content = fs::read_to_string(filepath).await?;

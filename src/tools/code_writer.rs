@@ -29,6 +29,7 @@ impl Tool for CodeWriterTool {
     ///
     /// A `Result` with a success message if the file was written correctly, or
     /// an error if the arguments are invalid or the file cannot be written.
+    #[tracing::instrument(skip(self))]
     async fn execute(&self, args: &str) -> Result<String> {
         let parts: Vec<&str> = args.splitn(2, ' ').collect();
         if parts.len() != 2 {
