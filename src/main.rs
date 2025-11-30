@@ -14,11 +14,7 @@ use llm::{Llm, MockLlm, OpenAiLlm};
 use orchestrator::Orchestrator;
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::sync::Arc;
 use supervisor::SupervisorAgent;
-use opentelemetry::global;
-use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::{propagation::TraceContextPropagator, trace, Resource};
 use tools::{
     code_writer::CodeWriterTool, directory_lister::DirectoryListerTool,
     file_reader::FileReaderTool, system::SystemTool, web_scraper::WebScraperTool,
@@ -96,14 +92,19 @@ async fn main() {
 
     let args = Args::parse();
 
-    let llm: Arc<dyn Llm + Send + Sync> = if args.mock {
-        Arc::new(MockLlm)
+    let llm: Box<dyn Llm + Send + Sync> = if args.mock {
+        Box::new(MockLlm)
     } else {
         Arc::new(OpenAiLlm::new(&settings.model))
     };
+    let llm2: Box<dyn Llm + Send + Sync> = if args.mock {
+        Box::new(MockLlm)
+    } else {
+        Box::new(OpenAiLlm::new(&settings.model))
+    };
 
     let file_system_agent = ExecutorAgent::new(
-        llm.clone(),
+        llm,
         vec![
             Box::new(CodeWriterTool),
             Box::new(FileReaderTool),
@@ -115,7 +116,7 @@ async fn main() {
     );
 
     let web_scraper_agent = ExecutorAgent::new(
-        llm.clone(),
+        llm2,
         vec![Box::new(WebScraperTool)],
         "WebScraperAgent",
         "An agent that can scrape web pages.",
@@ -131,7 +132,13 @@ async fn main() {
         Box::new(web_scraper_agent) as Box<dyn Agent + Send + Sync>,
     );
 
-    let supervisor = SupervisorAgent::new(llm, workers);
+    let supervisor_llm: Box<dyn Llm + Send + Sync> = if args.mock {
+        Box::new(MockLlm)
+    } else {
+        Box::new(OpenAiLlm::new(&settings.model))
+    };
+
+    let supervisor = SupervisorAgent::new(supervisor_llm, workers);
 
     let orchestrator = Orchestrator::new(Box::new(supervisor));
 

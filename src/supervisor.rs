@@ -2,7 +2,7 @@ use crate::{agent::Agent, llm::Llm};
 use anyhow::Result;
 use async_trait::async_trait;
 use serde::Deserialize;
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 use tracing::info;
 
 #[derive(Deserialize)]
@@ -14,14 +14,14 @@ struct RoutingDecision {
 /// An agent responsible for supervising a team of worker agents and routing
 /// tasks to the appropriate worker.
 pub struct SupervisorAgent {
-    llm: Arc<dyn Llm + Send + Sync>,
+    llm: Box<dyn Llm + Send + Sync>,
     workers: HashMap<String, Box<dyn Agent + Send + Sync>>,
 }
 
 impl SupervisorAgent {
     /// Creates a new `SupervisorAgent`.
     pub fn new(
-        llm: Arc<dyn Llm + Send + Sync>,
+        llm: Box<dyn Llm + Send + Sync>,
         workers: HashMap<String, Box<dyn Agent + Send + Sync>>,
     ) -> Self {
         Self { llm, workers }
@@ -80,7 +80,6 @@ impl Agent for SupervisorAgent {
     /// # Returns
     ///
     /// A `Result` containing the final answer from the worker agent.
-    #[tracing::instrument(skip(self))]
     async fn run(&self, task: &str) -> Result<String> {
         let prompt = self.construct_prompt(task);
 
