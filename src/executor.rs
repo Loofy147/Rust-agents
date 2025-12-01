@@ -186,3 +186,44 @@ impl Agent for ExecutorAgent {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{llm::MockLlm, tools::Tool};
+    use serde_json::json;
+    use std::sync::Arc;
+
+    // A mock tool for testing
+    struct MockTool;
+    #[async_trait]
+    impl Tool for MockTool {
+        fn name(&self) -> &str {
+            "MockTool"
+        }
+        async fn execute(&self, args: &str) -> Result<String> {
+            Ok(format!("MockTool executed with args: {}", args))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_executor_agent_single_loop() {
+        let response = json!({
+            "thought": "I should use the MockTool.",
+            "action": {
+                "tool": "Finish",
+                "args": "test"
+            }
+        })
+        .to_string();
+
+        let llm = Arc::new(MockLlm::new(&response));
+        let tools: Vec<Box<dyn Tool + Send + Sync>> = vec![Box::new(MockTool)];
+        let agent = ExecutorAgent::new(llm, tools, "TestExecutor", "A test executor agent");
+
+        let task = "Use the mock tool";
+        let result = agent.run(task).await.unwrap();
+
+        assert_eq!(result, "test");
+    }
+}

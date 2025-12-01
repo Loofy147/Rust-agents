@@ -1,7 +1,11 @@
 [package]
 name = "app"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+
+[features]
+default = ["sandbox"]
+sandbox = []
 
 [dependencies]
 anyhow = "1.0.86"

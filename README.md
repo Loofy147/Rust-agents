@@ -1,17 +1,20 @@
 # Rust Multi-Agent Framework
 
-This project is a sophisticated, asynchronous framework for building and running multi-agent systems in Rust. It is built on a **plan-and-execute** paradigm, where a team of specialized agents collaborates to accomplish complex tasks.
+This project is a sophisticated, asynchronous framework for building and running multi-agent systems in Rust. It is built on a **Hierarchical Delegation** architecture, where a team of specialized agents collaborates to accomplish complex tasks.
 
 ## Architecture
 
-The framework is designed around a central `Orchestrator` that manages a team of agents. The primary workflow involves two main agent types:
+The framework is designed around a central `Orchestrator` that manages a team of supervisor agents. The primary workflow involves three main agent types:
 
--   **`PlannerAgent`**: This agent receives a high-level goal and is responsible for breaking it down into a sequence of smaller, actionable steps.
--   **`ExecutorAgent`**: This agent takes a single, well-defined step from the planner's output and executes it using the available tools. It operates on the **ReAct (Reasoning and Acting)** paradigm, where it reasons about the step, selects a tool, and acts upon the environment.
+-   **`Orchestrator`**: The top-level agent that receives a high-level goal and delegates it to the appropriate supervisor.
+-   **`SupervisorAgent`**: This agent manages a team of specialized worker agents. It receives a task from the orchestrator, determines which worker is best suited for the job, and routes the task accordingly.
+-   **`ExecutorAgent`**: A specialized worker agent that performs a specific task using a set of tools. It operates on the **ReAct (Reasoning and Acting)** paradigm, where it reasons about the step, selects a tool, and acts upon the environment.
 
 ### Core Components
 
--   **`orchestrator::Orchestrator`**: The central coordinator that manages the overall workflow. It takes a task, gets a plan from the `PlannerAgent`, and dispatches each step of the plan to the `ExecutorAgent`.
+-   **`orchestrator::Orchestrator`**: The central coordinator that manages the overall workflow. It takes a task and delegates it to a `SupervisorAgent`.
+-   **`supervisor::SupervisorAgent`**: Manages a team of worker agents and routes tasks to the appropriate one.
+-   **`executor::ExecutorAgent`**: A worker agent that executes a single, well-defined task.
 -   **`agent::Agent`**: A generic trait for any agent, defining the common `run` method.
 -   **`llm::Llm`**: A trait for Large Language Models. The framework includes two implementations:
     -   `OpenAiLlm`: Connects to the OpenAI API to provide reasoning capabilities to the agents.

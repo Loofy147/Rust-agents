@@ -100,7 +100,7 @@ async fn main() {
     let llm2: Box<dyn Llm + Send + Sync> = if args.mock {
         Box::new(MockLlm)
     } else {
-        Box::new(OpenAiLlm::new(&settings.model))
+        Arc::new(OpenAiLlm::new(&settings.model))
     };
 
     let file_system_agent = ExecutorAgent::new(
