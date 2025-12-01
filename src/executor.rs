@@ -42,7 +42,7 @@ pub struct Thought {
 /// action, observing the outcome, and then repeating the cycle until the task
 /// is complete.
 pub struct ExecutorAgent {
-    llm: Arc<dyn Llm + Send + Sync>,
+    llm: Box<dyn Llm + Send + Sync>,
     tools: HashMap<String, Box<dyn Tool + Send + Sync>>,
     name: String,
     description: String,
@@ -62,7 +62,7 @@ impl ExecutorAgent {
     ///
     /// A new instance of `ExecutorAgent`.
     pub fn new(
-        llm: Arc<dyn Llm + Send + Sync>,
+        llm: Box<dyn Llm + Send + Sync>,
         tools: Vec<Box<dyn Tool + Send + Sync>>,
         name: &str,
         description: &str,

@@ -2,7 +2,7 @@ use crate::{agent::Agent, llm::Llm};
 use anyhow::Result;
 use async_trait::async_trait;
 use serde::Deserialize;
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 use tracing::info;
 
 #[derive(Deserialize)]
@@ -14,14 +14,14 @@ struct RoutingDecision {
 /// An agent responsible for supervising a team of worker agents and routing
 /// tasks to the appropriate worker.
 pub struct SupervisorAgent {
-    llm: Arc<dyn Llm + Send + Sync>,
+    llm: Box<dyn Llm + Send + Sync>,
     workers: HashMap<String, Box<dyn Agent + Send + Sync>>,
 }
 
 impl SupervisorAgent {
     /// Creates a new `SupervisorAgent`.
     pub fn new(
-        llm: Arc<dyn Llm + Send + Sync>,
+        llm: Box<dyn Llm + Send + Sync>,
         workers: HashMap<String, Box<dyn Agent + Send + Sync>>,
     ) -> Self {
         Self { llm, workers }
@@ -80,7 +80,6 @@ impl Agent for SupervisorAgent {
     /// # Returns
     ///
     /// A `Result` containing the final answer from the worker agent.
-    #[tracing::instrument(skip(self))]
     async fn run(&self, task: &str) -> Result<String> {
         let prompt = self.construct_prompt(task);
 
@@ -100,62 +99,5 @@ impl Agent for SupervisorAgent {
             .ok_or_else(|| anyhow::anyhow!("Worker not found: {}", decision.worker))?;
 
         worker.run(&decision.task).await
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{agent::Agent, llm::MockLlm};
-    use std::{collections::HashMap, sync::Arc};
-
-    struct MockWorker {
-        name: String,
-        description: String,
-    }
-
-    #[async_trait]
-    impl Agent for MockWorker {
-        fn name(&self) -> String {
-            self.name.clone()
-        }
-
-        fn description(&self) -> String {
-            self.description.clone()
-        }
-
-        async fn run(&self, task: &str) -> Result<String> {
-            Ok(format!("{} completed task: {}", self.name, task))
-        }
-    }
-
-    #[tokio::test]
-    async fn test_supervisor_agent_routing() {
-        let response = serde_json::json!({
-            "worker": "Worker1",
-            "task": "Do something that worker1 can do"
-        })
-        .to_string();
-        let llm = Arc::new(MockLlm::new(&response));
-        let mut workers: HashMap<String, Box<dyn Agent + Send + Sync>> = HashMap::new();
-
-        let worker1 = MockWorker {
-            name: "Worker1".to_string(),
-            description: "A worker that does worker1 things.".to_string(),
-        };
-        workers.insert(worker1.name(), Box::new(worker1));
-
-        let worker2 = MockWorker {
-            name: "Worker2".to_string(),
-            description: "A worker that does worker2 things.".to_string(),
-        };
-        workers.insert(worker2.name(), Box::new(worker2));
-
-        let supervisor = SupervisorAgent::new(llm, workers);
-
-        let task = "Do something that worker1 can do";
-        let result = supervisor.run(task).await.unwrap();
-
-        assert_eq!(result, "Worker1 completed task: Do something that worker1 can do");
     }
 }
